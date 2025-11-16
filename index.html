@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sand Flow — p5.js 3D Particles</title>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19/dist/lil-gui.umd.min.js"></script>
+
+  <style>
+    :root{
+      /* ── 레이아웃 변수 ───────────────────────────────── */
+      --panel-w: 270px;
+      --panel-alpha: 0.30;
+
+      /* 여백 규칙(필요시 이것만 바꾸면 전체가 바뀜) */
+      --gap-folder-top: 20px;           /* 각 폴더의 위쪽 여백 */
+      --gap-first-folder-top: 2px;      /* 첫 폴더만 약간 덜 띄움 */
+      --gap-title-bottom: -4px;          /* 폴더 타이틀과 본문 사이 */
+      --gap-controller-v: 5px;          /* 컨트롤(슬라이더/컬러) 세로 간격 */
+      --gap-after-pills: 10px;          /* 프리셋 버튼 그룹 아래 간격 */
+    }
+
+    html, body{
+      height:100%; margin:0; background:#0b0c10; overflow:hidden;
+    }
+
+    #stage{ position:fixed; inset:0; z-index:1; }
+
+    /* 패널 */
+    #panel{
+      position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
+      z-index:10; color:#eee; box-shadow:none; border-left:none;
+      background:rgba(17,17,17,var(--panel-alpha));
+      backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+      font:11px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      padding:12px 12px 18px; overflow:auto;
+    }
+    #panel .title{
+      font-weight:700; margin:6px 4px 10px; letter-spacing:.02em; font-size:13px;
+    }
+    .gui-root{ position:sticky; top:8px; z-index:2; }
+
+    /* lil-gui 기본 투명/폰트 */
+    .lil-gui{
+      --text-color:#ddd; --number-color:#9bd;
+      --background-color:transparent !important;
+      --title-background-color:transparent !important;
+      --widget-color:rgba(255,255,255,0.10);
+      --hover-color:rgba(255,255,255,0.15);
+      --focus-color:rgba(255,255,255,0.20);
+      font-size:11px !important;
+    }
+    .lil-gui, .lil-gui .title, .lil-gui .children{
+      background:transparent !important; backdrop-filter:none !important;
+      -webkit-backdrop-filter:none !important; box-shadow:none !important; border:none !important;
+    }
+    .lil-gui, .lil-gui *{ font-size:10.5px !important; line-height:1.3 !important; }
+
+    /* ── 간격 규칙: 폴더/컨트롤 ───────────────────────── */
+    /* 각 폴더는 .lil-gui 내부에 또 다른 .lil-gui로 렌더됨 */
+    /* 폴더 위쪽만 띄우고, 아래는 붙게 */
+    .lil-gui > .children > .lil-gui{            /* 모든 폴더 */
+      margin-top: var(--gap-folder-top) !important;
+      margin-bottom: 0 !important;
+    }
+    .lil-gui > .children > .lil-gui:first-child{ /* 첫 폴더만 */
+      margin-top: var(--gap-first-folder-top) !important;
+    }
+    /* 폴더 타이틀과 본문 사이 */
+    .lil-gui .lil-gui .title{
+      margin: 0 0 var(--gap-title-bottom) 0 !important;
+      padding: 0 !important;
+    }
+    /* 컨트롤(슬라이더/컬러피커) 세로 간격 */
+    .lil-gui .controller{
+      margin: var(--gap-controller-v) 0 !important;
+    }
+    .lil-gui .controller:last-child{
+      margin-bottom: 0 !important; /* 폴더의 마지막 컨트롤은 아래를 붙임 */
+    }
+
+    /* ── 프리셋 pill 버튼 ─────────────────────────────── */
+    .lil-gui .controller.pill{
+      display:inline-flex !important;
+      width:auto !important;
+      margin:8px 8px var(--gap-after-pills) 0 !important; /* 그룹 아래만 크게 */
+      background:transparent !important; border:0 !important; padding:0 !important;
+    }
+    .lil-gui .controller.pill .name{ display:none !important; }
+    .lil-gui .controller.pill .widget{ flex:0 0 auto !important; }
+    .lil-gui .controller.pill button{
+      border-radius:999px !important; padding:6px 14px !important;
+      background:rgba(255,255,255,0.18) !important;
+      border:1px solid rgba(255,255,255,0.25) !important;
+      color:#e6e9ff !important; font-weight:600 !important; letter-spacing:.2px;
+      box-shadow:none !important; cursor:pointer; line-height:1.2 !important;
+      transition:background .2s ease, transform .1s ease;
+    }
+    .lil-gui .controller.pill button:hover{ background:rgba(255,255,255,0.28) !important; }
+    .lil-gui .controller.pill button:active{ transform:translateY(1px); }
+
+    canvas{ display:block; }
+
+    /* 안내문 */
+    #info{
+      margin-top:14px; padding:10px 12px 12px;
+      background:rgba(255,255,255,0.08); border-radius:10px; color:#f0f0f0;
+      line-height:1.55; font-size:11px;
+    }
+    #info h3{ margin:0 0 0; font-size:12px; letter-spacing:.01em; }
+    #info p{ margin:11px 0; font-size:11px; opacity:.9; }
+  </style>
+</head>
+
+<body>
+  <!-- 전체 화면 캔버스 -->
+  <div id="stage"></div>
+
+  <!-- 우측 오버레이 패널 -->
+  <aside id="panel">
+    <div class="title">Sand Flow (3D)</div>
+    <div id="gui" class="gui-root"></div>
+
+    <div id="info">
+      <h3>About this piece</h3>
+      <p>
+        보이지 않는 흐름을 따라 빛의 선이 움직입니다.<br>
+        Show Field을 통해 흐름을 시각화할 수 있습니다.<br>
+        화살표는 흐름에 따라 계속 변화합니다.
+      </p>
+      <p style="opacity:.85">
+        새로고침하면 다시 흐름이 그려집니다.<br>
+        우클릭하여 이미지를 저장할 수 있습니다.<br>
+        크롬 브라우저에서 화면비율을 30~80%으로 줄여<br>
+        멀리서 보는 것을 추천합니다.
+      </p>
+    </div>
+  </aside>
+
+  <!-- Sketch -->
+  <script src="sketch.js"></script>
+</body>
+</html>
